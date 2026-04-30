@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GhostOS - Teste Offline</title>
+    <style>
+        body { background: #0d0d0d; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
+        .terminal { max-width: 600px; margin: 0 auto; border: 1px solid #00ff41; padding: 20px; box-shadow: 0 0 15px rgba(0, 255, 65, 0.2); }
+        input { width: 100%; background: #1a1a1a; border: 1px solid #333; color: #00ff41; padding: 12px; font-size: 1rem; outline: none; box-sizing: border-box; }
+        .btns-container { display: flex; gap: 10px; margin-top: 15px; min-height: 40px; }
+        button { flex: 1; background: #002b0b; border: 1px solid #00ff41; color: #00ff41; padding: 8px; cursor: pointer; visibility: hidden; transition: 0.2s; }
+        button:hover { background: #00ff41; color: #000; }
+        .log { font-size: 0.7rem; color: #666; margin-top: 20px; border-top: 1px solid #222; pt: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="terminal">
+    <h3>> GHOST_CORRECTOR_INIT...</h3>
+    <input type="text" id="inputUser" placeholder="Digite algo (ex: progama)..." autocomplete="off">
+    
+    <div class="btns-container" id="sugestoes">
+        <button onclick="completar(this)"></button>
+        <button onclick="completar(this)"></button>
+        <button onclick="completar(this)"></button>
+    </div>
+
+    <div class="log" id="status">Status: Aguardando boot...</div>
+</div>
+
+<script>
+    // Configurações
+    const PASTA_DICTS = './dicts/';
+    const ARQUIVOS = ['dicionario.txt']; // Adicione mais nomes aqui se tiver outros .txt
+    let bancoGeral = [];
+
+    // --- LÓGICA DE TRADUÇÃO (LEVENSHTEIN) ---
+    function getDistancia(s1, s2) {
+        let v0 = Array.from({length: s2.length + 1}, (_, i) => i);
+        let v1 = [];
+        for (let i = 0; i < s1.length; i++) {
+            v1[0] = i + 1;
+            for (let j = 0; j < s2.length; j++) {
+                v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + (s1[i] === s2[j] ? 0 : 1));
+            }
+            v0 = [...v1];
+        }
+        return v0[s2.length];
+    }
+
+    // --- CARREGAMENTO OFFLINE ---
+    async function boot() {
+        const status = document.getElementById('status');
+        try {
+            for (const file of ARQUIVOS) {
+                status.innerText = `Lendo: ${file}...`;
+                const res = await fetch(PASTA_DICTS + file);
+                const data = await res.text();
+                const linhas = data.split(/\r?\n/).map(p => p.trim().toLowerCase()).filter(p => p);
+                bancoGeral = [...new Set([...bancoGeral, ...linhas])];
+            }
+            status.innerText = `Sistema Online: ${bancoGeral.length} palavras carregadas.`;
+        } catch (err) {
+            status.innerText = "Erro: Verifique se a pasta 'dicts' existe no www/";
+            console.error(err);
+        }
+    }
+
+    // --- INTERAÇÃO ---
+    const input = document.getElementById('inputUser');
+    const botoes = document.querySelectorAll('#sugestoes button');
+
+    input.addEventListener('input', () => {
+        const texto = input.value;
+        const partes = texto.trim().split(/\s+/);
+        const ultima = partes[partes.length - 1].toLowerCase();
+
+        if (!ultima || texto.endsWith(' ')) {
+            botoes.forEach(b => b.style.visibility = 'hidden');
+            return;
+        }
+
+        // Inteligência: Primeiro busca exata, depois similaridade
+        let matches = bancoGeral
+            .filter(p => p.startsWith(ultima))
+            .slice(0, 3);
+
+        if (matches.length < 3) {
+            const fuzzy = bancoGeral
+                .map(p => ({ p, d: getDistancia(ultima, p) }))
+                .filter(i => i.d <= 2)
+                .sort((a, b) => a.d - b.d)
+                .map(i => i.p);
+            
+            matches = [...new Set([...matches, ...fuzzy])].slice(0, 3);
+        }
+
+        botoes.forEach((btn, i) => {
+            if (matches[i]) {
+                btn.innerText = matches[i];
+                btn.style.visibility = 'visible';
+            } else {
+                btn.style.visibility = 'hidden';
+            }
+        });
+    });
+
+    function completar(btn) {
+        const partes = input.value.trim().split(/\s+/);
+        partes[partes.length - 1] = btn.innerText;
+        input.value = partes.join(' ') + ' ';
+        input.focus();
+        botoes.forEach(b => b.style.visibility = 'hidden');
+    }
+
+    // Inicia o processo
+    boot();
+</script>
+
+</body>
+</html>
