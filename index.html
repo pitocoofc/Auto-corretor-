@@ -93,9 +93,10 @@
     async function boot(config) {
         const status = document.getElementById('status');
         try {
-            status.innerText = `Carregando arquivos de ${config.pasta}...`;
-            
             for (const file of config.arquivos) {
+                // Atualiza o texto para cada arquivo lido
+                status.innerText = `Lendo: ${file}...`;
+                
                 const res = await fetch(config.pasta + file);
                 if (!res.ok) continue;
 
@@ -104,18 +105,20 @@
                     .map(p => p.trim().toLowerCase())
                     .filter(p => {
                         if (!p) return false;
-                        if (!config.regex) return true; // Se não houver regex, aceita tudo
+                        if (!config.regex) return true;
                         return config.regex.test(p);
                     });
 
                 bancoGeral = [...new Set([...bancoGeral, ...linhas])];
             }
-            status.innerText = `Online: ${bancoGeral.length} termos carregados.`;
+            // Exibe o resultado final após o loop
+            status.innerText = `Sistema Online: ${bancoGeral.length} termos carregados.`;
         } catch (err) {
             status.innerText = "Falha no boot da linguagem.";
             console.error(err);
         }
     }
+
 
     // --- INTERFACE ---
 
