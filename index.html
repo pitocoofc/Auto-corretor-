@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhostOS - Teste Offline</title>
+    <title>GhostOS - Config Individual</title>
     <style>
         body { background: #0d0d0d; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
         .terminal { max-width: 600px; margin: 0 auto; border: 1px solid #00ff41; padding: 20px; box-shadow: 0 0 15px rgba(0, 255, 65, 0.2); }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        select { background: #1a1a1a; color: #00ff41; border: 1px solid #00ff41; padding: 5px; outline: none; cursor: pointer; }
         input { width: 100%; background: #1a1a1a; border: 1px solid #333; color: #00ff41; padding: 12px; font-size: 1rem; outline: none; box-sizing: border-box; }
         .btns-container { display: flex; gap: 10px; margin-top: 15px; min-height: 40px; }
         button { flex: 1; background: #002b0b; border: 1px solid #00ff41; color: #00ff41; padding: 8px; cursor: pointer; visibility: hidden; transition: 0.2s; }
@@ -17,8 +19,16 @@
 <body>
 
 <div class="terminal">
-    <h3>> GHOST_CORRECTOR_INIT...</h3>
-    <input type="text" id="inputUser" placeholder="Digite algo (ex: progama)..." autocomplete="off">
+    <div class="controls">
+        <h3>> GHOST_CORRECTOR</h3>
+        <select id="langSelect" onchange="trocarContexto()">
+            <option value="PT">Português</option>
+            <option value="EN">English</option>
+            <option value="LUA">Lua/Dev</option>
+        </select>
+    </div>
+
+    <input type="text" id="inputUser" placeholder="Digite aqui..." autocomplete="off">
     
     <div class="btns-container" id="sugestoes">
         <button onclick="completar(this)"></button>
@@ -26,13 +36,39 @@
         <button onclick="completar(this)"></button>
     </div>
 
-    <div class="log" id="status">Status: Aguardando boot...</div>
+    <div class="log" id="status">Iniciando sistema...</div>
 </div>
 
 <script>
-    const PASTA_DICTS = './dicts/';
-    const ARQUIVOS = ['a.txt', 'b.txt', 'c.txt', 'd.txt', 'e.txt', 'f.txt', 'g.txt', 'h.txt', 'i.txt', 'j.txt', 'k.txt', 'l.txt', 'm.txt', 'n.txt', 'o.txt', 'p.txt', 'q.txt', 'r.txt', 's.txt', 't.txt', 'u.txt', 'v.txt', 'w.txt', 'x.txt', 'y.txt', 'z.txt']; 
+    // --- DEFINIÇÕES INDIVIDUAIS ---
+    
+    const CONFIG_PT = {
+        pasta: './dicts/',
+        arquivos: ['a.txt', 'b.txt', 'c.txt', 'd.txt', 'e.txt', 'f.txt', 'g.txt', 'h.txt', 'i.txt', 'j.txt', 'k.txt', 'l.txt', 'm.txt', 'n.txt', 'o.txt', 'p.txt', 'q.txt', 'r.txt', 's.txt', 't.txt', 'u.txt', 'v.txt', 'w.txt', 'x.txt', 'y.txt', 'z.txt'],
+        regex: /^[a-záàâãéèêíïóôõöúçñ-]+$/
+    };
+
+    const CONFIG_EN = {
+        pasta: './en/',
+        arquivos: ['5.txt', 'common.txt', 'words.txt'], // Seus arquivos específicos
+        regex: /^[a-z-]+$/
+    };
+
+    const CONFIG_LUA = {
+        pasta: './lua/',
+        arquivos: ['keywords.txt', 'methods.txt', 'ghost_api.txt'],
+        regex: null // Permite qualquer símbolo em código
+    };
+
+    const MAPA_LANG = {
+        'PT': CONFIG_PT,
+        'EN': CONFIG_EN,
+        'LUA': CONFIG_LUA
+    };
+
     let bancoGeral = [];
+
+    // --- LÓGICA DE CORE ---
 
     function getDistancia(s1, s2) {
         let v0 = Array.from({length: s2.length + 1}, (_, i) => i);
@@ -47,30 +83,41 @@
         return v0[s2.length];
     }
 
-    async function boot() {
-        const status = document.getElementById('status');
-        // Regex para aceitar apenas letras, acentos e hífens (opcional)
-        // ^[a-záàâãéèêíïóôõöúçñ-]+$
-        const regexLetras = /^[a-záàâãéèêíïóôõöúçñ-]+$/;
+    async function trocarContexto() {
+        const lang = document.getElementById('langSelect').value;
+        const conf = MAPA_LANG[lang];
+        bancoGeral = [];
+        await boot(conf);
+    }
 
+    async function boot(config) {
+        const status = document.getElementById('status');
         try {
-            for (const file of ARQUIVOS) {
-                status.innerText = `Lendo: ${file}...`;
-                const res = await fetch(PASTA_DICTS + file);
+            status.innerText = `Carregando arquivos de ${config.pasta}...`;
+            
+            for (const file of config.arquivos) {
+                const res = await fetch(config.pasta + file);
+                if (!res.ok) continue;
+
                 const data = await res.text();
-                
                 const linhas = data.split(/\r?\n/)
                     .map(p => p.trim().toLowerCase())
-                    .filter(p => p && regexLetras.test(p)); // FILTRO AQUI
+                    .filter(p => {
+                        if (!p) return false;
+                        if (!config.regex) return true; // Se não houver regex, aceita tudo
+                        return config.regex.test(p);
+                    });
 
                 bancoGeral = [...new Set([...bancoGeral, ...linhas])];
             }
-            status.innerText = `Sistema Online: ${bancoGeral.length} palavras puras carregadas.`;
+            status.innerText = `Online: ${bancoGeral.length} termos carregados.`;
         } catch (err) {
-            status.innerText = "Erro: Verifique a pasta 'dicts'.";
+            status.innerText = "Falha no boot da linguagem.";
             console.error(err);
         }
     }
+
+    // --- INTERFACE ---
 
     const input = document.getElementById('inputUser');
     const botoes = document.querySelectorAll('#sugestoes button');
@@ -85,9 +132,7 @@
             return;
         }
 
-        let matches = bancoGeral
-            .filter(p => p.startsWith(ultima))
-            .slice(0, 3);
+        let matches = bancoGeral.filter(p => p.startsWith(ultima)).slice(0, 3);
 
         if (matches.length < 3) {
             const fuzzy = bancoGeral
@@ -95,7 +140,6 @@
                 .filter(i => i.d <= 2)
                 .sort((a, b) => a.d - b.d)
                 .map(i => i.p);
-            
             matches = [...new Set([...matches, ...fuzzy])].slice(0, 3);
         }
 
@@ -117,7 +161,8 @@
         botoes.forEach(b => b.style.visibility = 'hidden');
     }
 
-    boot();
+    // Boot inicial (Português)
+    boot(CONFIG_PT);
 </script>
 
 </body>
